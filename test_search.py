@@ -1,7 +1,7 @@
 import numpy as np
 import queue
 import pytest
-from game import BoardState, GameSimulator, Rules
+from game import BoardState, GameSimulator, Rules, PlayerAlgorithmA, PlayerAlgorithmB, AdversarialSearchPlayer
 from search import GameStateProblem
 
 class TestSearch:
@@ -348,23 +348,23 @@ class TestSearch:
         assert predicted_reachable_encoded == encoded_reachable
 
 
-# @pytest.mark.parametrize("p1_class, p2_class, encoded_state_tuple,exp_winner,exp_stat",
-#     [
-#         (PlayerAlgorithmA, PlayerAlgorithmB, (49, 37, 46, 41, 55, 41, 50, 51, 52, 53, 54, 52), "WHITE", "No issues"),
-#         (Your AdversarialSearchPlayer, PlayerWithAlgorithmB, (49, 37, 46,  7, 55,  7, 50, 51, 52, 53, 54, 52), "WHITE", "No issues"), 
-#         (Your AdversarialSearchPlayer, PlayerWithAlgorithmB, (49, 37, 46,  0, 55,  0, 50, 51, 52, 53, 54, 52), "WHITE", "No issues"), 
-#         (PlayerWithAlgorithmB, Your AdversarialSearchPlayer, (14, 21, 22, 28, 29, 22,  9, 20, 34, 39, 55, 55), "BLACK", "No issues"), 
-#         (PlayerWithAlgorithmB, Your AdversarialSearchPlayer, (14, 21, 22, 28, 29, 22, 11, 20, 34, 39, 55, 55), "BLACK", "No issues"), 
-#         (Your AdversarialSearchPlayer, PlayerWithAlgorithmB, (44, 37, 46, 34, 40, 34,  1,  2, 52,  4,  5, 52), "WHITE", "No issues"), 
-#         (Your AdversarialSearchPlayer, PlayerWithAlgorithmB, (44, 37, 46, 28, 40, 28,  1,  2, 52,  4,  5, 52), "WHITE", "No issues") 
-#     ])
+    # @pytest.mark.parametrize("p1_class, p2_class, encoded_state_tuple, exp_winner, exp_stat",
+    #     [
+    #         (PlayerAlgorithmA, PlayerAlgorithmB, (49, 37, 46, 41, 55, 41, 50, 51, 52, 53, 54, 52), "WHITE", "No issues"),
+    #         (AdversarialSearchPlayer, PlayerAlgorithmB, (49, 37, 46,  7, 55,  7, 50, 51, 52, 53, 54, 52), "WHITE", "No issues"), 
+    #         (AdversarialSearchPlayer, PlayerAlgorithmB, (49, 37, 46,  0, 55,  0, 50, 51, 52, 53, 54, 52), "WHITE", "No issues"), 
+    #         (PlayerAlgorithmB, AdversarialSearchPlayer, (14, 21, 22, 28, 29, 22,  9, 20, 34, 39, 55, 55), "BLACK", "No issues"), 
+    #         (PlayerAlgorithmB, AdversarialSearchPlayer, (14, 21, 22, 28, 29, 22, 11, 20, 34, 39, 55, 55), "BLACK", "No issues"), 
+    #         (AdversarialSearchPlayer, PlayerAlgorithmB, (44, 37, 46, 34, 40, 34,  1,  2, 52,  4,  5, 52), "WHITE", "No issues"), 
+    #         (AdversarialSearchPlayer, PlayerAlgorithmB, (44, 37, 46, 28, 40, 28,  1,  2, 52,  4,  5, 52), "WHITE", "No issues") 
+    #     ])
 
-# def test_adversarial_search(self, p1_class, p2_class, encoded_state_tuple, exp_winner, exp_stat):
-#     b1 = BoardState()
-#     b1.state = np.array(encoded_state_tuple)
-#     b1.decode_state = b1.make_state()
-#     players = [p1_class(GameStateProblem(b1, b1, 0), 0), p2_class(GameStateProblem(b1, b1, 0), 1)]
-#     sim = GameSimulator(players)
-#     sim.game_state = b1
-#     rounds, winner, status = sim.run()
-#     assert winner == exp_winner and status == exp_stat
+    # def test_adversarial_search(self, p1_class, p2_class, encoded_state_tuple, exp_winner, exp_stat):
+    #     b1 = BoardState()
+    #     b1.state = np.array(encoded_state_tuple)
+    #     b1.decode_state = b1.make_state()
+    #     players = [p1_class(GameStateProblem(b1, b1, 0), 0), p2_class(GameStateProblem(b1, b1, 0), 1)]
+    #     sim = GameSimulator(players)
+    #     sim.game_state = b1
+    #     rounds, winner, status = sim.run()
+    #     assert winner == exp_winner and status == exp_stat

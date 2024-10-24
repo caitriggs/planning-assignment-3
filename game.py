@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class Player:
     def __init__(self, policy_fnc):
         """
@@ -9,7 +8,18 @@ class Player:
         self.policy_fnc = policy_fnc
 
     def policy(self, decode_state):
-        pass
+        """
+        The policy method will call the assigned policy_fnc (which could be any adversarial search algorithm)
+        with the decoded game state and return the action (and optionally, value).
+        
+        Inputs:
+          - decode_state: A 12-tuple representing the current game state 
+        
+        Outputs:
+          - action: The chosen action (e.g., (relative_idx, encoded_position))
+          - value: Optional value of the state (useful for minimax-based algorithms)
+        """
+        return self.policy_fnc(decode_state)
 
 
 class AdversarialSearchPlayer(Player):
@@ -19,7 +29,7 @@ class AdversarialSearchPlayer(Player):
         In this example, in the above parameters, gsp is a GameStateProblem, and
         gsp.adversarial_search_method is a method of that class.  
         """
-        super().__init__(gsp.adversarial_search_method)
+        super().__init__(gsp.search_alg_fnc)
         self.gsp = gsp
         self.b = BoardState()
         self.player_idx = player_idx
@@ -47,6 +57,14 @@ class AdversarialSearchPlayer(Player):
         state_tup = tuple((encoded_state_tup, self.player_idx))
         val_a, val_b, val_c = (1, 2, 3)
         return self.policy_fnc(state_tup, val_a, val_b, val_c)
+    
+class PlayerAlgorithmA(AdversarialSearchPlayer):
+    def __init__(self, gsp, player_idx):
+        super().__init__(gsp, player_idx)
+
+class PlayerAlgorithmB(AdversarialSearchPlayer):
+    def __init__(self, gsp, player_idx):
+        super().__init__(gsp, player_idx)
     
 
 class BoardState:
@@ -293,7 +311,7 @@ class GameSimulator:
             player_idx = self.current_round % 2
             ## For the player who needs to move, provide them with the current game state
             ## and then ask them to choose an action according to their policy
-            action, value = self.players[player_idx].policy( self.game_state.make_state() )
+            action, value = self.players[player_idx].policy(self.game_state.make_state())
             print(f"Round: {self.current_round} Player: {player_idx} State: {tuple(self.game_state.state)} Action: {action} Value: {value}")
 
             if not self.validate_action(action, player_idx):

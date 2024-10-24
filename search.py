@@ -1,6 +1,7 @@
 import numpy as np
-import queue, heapq
-from game import BoardState, GameSimulator, Rules
+import math
+import random
+from game import BoardState, GameSimulator
 
 class Problem:
     """
@@ -14,23 +15,76 @@ class Problem:
         self.initial_state = initial_state
         self.goal_state_set = goal_state_set
 
-    def get_actions(self, state):
+    def get_actions(self, state: tuple):
         """
-        Returns a set of valid actions that can be taken from this state
-        """
-        pass
+        From the given state, provide the set possible actions that can be taken from the state
 
-    def execute(self, state, action):
+        Inputs: 
+            state: (encoded_state, player_idx), where encoded_state is a tuple of 12 integers,
+                and player_idx is the player that is moving this turn
+
+        Outputs:
+            returns a set of actions
         """
-        Transitions from the state to the next state that results from taking the action
+        s, p = state
+        np_state = np.array(s)
+        self.sim.game_state.state = np_state
+        self.sim.game_state.decode_state = self.sim.game_state.make_state()
+        actions = self.sim.generate_valid_actions(p)
+        
+        # Debugging output to check if valid actions exist
+        if not actions:
+            print(f"DEBUG: No valid actions available for player {p} in state {state}")
+        else:
+            print(f"DEBUG: Available actions for player {p}: {actions}")
+        
+        return actions
+    
+    def execute(self, state: tuple, action: tuple):
         """
-        pass
+        From the given state, executes the given action
+
+        The action is given with respect to the current player
+
+        Inputs: 
+            state: is a tuple (encoded_state, player_idx), where encoded_state is a tuple of 12 integers,
+                and player_idx is the player that is moving this turn
+            action: (relative_idx, position), where relative_idx is an index into the encoded_state
+                with respect to the player_idx, and position is the encoded position where the indexed piece should move to.
+        Outputs:
+            the next state tuple that results from taking action in state
+        """
+        s, p = state
+        k, v = action
+        offset_idx = p * 6
+        next_state = tuple((s[i] if i != offset_idx + k else v for i in range(len(s))), (p + 1) % 2)
+        print(f"Next state generated: {next_state}")
 
     def is_goal(self, state):
         """
-        Checks if the state is a goal state in the set of goal states
+        Checks if the current state is a goal state (i.e., either player has won).
+        White wins if their ball is in row 7 (positions 49-55),
+        Black wins if their ball is in row 0 (positions 0-6).
         """
-        return state in self.goal_state_set
+        board, player_idx = state
+        white_ball = board[5]  # White ball position
+        black_ball = board[11]  # Black ball position
+
+        # White wins if the ball is in row 7 (positions 49-55)
+        if 49 <= white_ball <= 55:
+            return True
+        # Black wins if the ball is in row 0 (positions 0-6)
+        if 0 <= black_ball <= 6:
+            return True
+        # If neither has won, return False
+        return False
+    
+    # def is_goal(self, state):
+    #     """
+    #     Checks if the state is a goal state in the set of goal states
+    #     """
+    #     return state in self.goal_state_set
+
 
 class GameStateProblem(Problem):
 
@@ -63,50 +117,7 @@ class GameStateProblem(Problem):
             self.search_alg_fnc = self.your_method
         to indicate which algorithm you'd like to run.
         """
-        if alg=='BFS':
-            self.search_alg_fnc = self.bfs_search
-        elif alg=='ASTAR':
-            self.search_alg_fnc = self.a_star_search
-        else:
-            self.search_alg_fnc = self.bfs_search
-        print(f"Using algo: {self.search_alg_fnc()}")
-
-    def get_actions(self, state: tuple):
-        """
-        From the given state, provide the set possible actions that can be taken from the state
-
-        Inputs: 
-            state: (encoded_state, player_idx), where encoded_state is a tuple of 12 integers,
-                and player_idx is the player that is moving this turn
-
-        Outputs:
-            returns a set of actions
-        """
-        s, p = state
-        np_state = np.array(s)
-        self.sim.game_state.state = np_state
-        self.sim.game_state.decode_state = self.sim.game_state.make_state()
-
-        return self.sim.generate_valid_actions(p)
-
-    def execute(self, state: tuple, action: tuple):
-        """
-        From the given state, executes the given action
-
-        The action is given with respect to the current player
-
-        Inputs: 
-            state: is a tuple (encoded_state, player_idx), where encoded_state is a tuple of 12 integers,
-                and player_idx is the player that is moving this turn
-            action: (relative_idx, position), where relative_idx is an index into the encoded_state
-                with respect to the player_idx, and position is the encoded position where the indexed piece should move to.
-        Outputs:
-            the next state tuple that results from taking action in state
-        """
-        s, p = state
-        k, v = action
-        offset_idx = p * 6
-        return tuple((tuple( s[i] if i != offset_idx + k else v for i in range(len(s))), (p + 1) % 2))
+        self.search_alg_fnc = self.monte_carlo_tree_search
 
     ## TODO: Implement your search algorithm(s) here as methods of the GameStateProblem.
     ##       You are free to specify parameters that your method may require.
@@ -133,316 +144,150 @@ class GameStateProblem(Problem):
     ## NOTE: Remember to set self.search_alg_fnc in set_search_alg above.
     ## 
 
-    def is_goal(self, state):
+    def monte_carlo_tree_search(self, state_tup, *args):
         """
-        Checks if the state is a goal state in the set of goal states
+        Monte Carlo Tree Search algorithm for decision making.
+        Parameters:
+            - state_tup: (encoded_state, player_idx)
+        Returns:
+            - The best action determined by the MCTS algorithm.
         """
-        return state in self.goal_state_set
+        root = MonteCarloTreeSearchNode(state=state_tup)
 
-    def bfs_search(self):
-        """
-        Implements a Breadth-First Search (BFS) to find the shortest sequence of moves
-        from the initial state to the goal state.
-        """
-        # Initialize BFS structures
-        frontier = queue.Queue()
-        frontier.put((self.initial_state, []))  # Start with initial state and an empty path
-        visited = set()
-        visited.add(self.initial_state)
+        # Set simulation limit
+        simulation_limit = 10  # Number of iterations of MCTS
 
-        while not frontier.empty():
-            current_state, path = frontier.get()
-
-            # Check if we reached the goal
-            if self.is_goal(current_state):
-                # Return the path that leads to this goal
-                return path + [(current_state, None)]  # Append the final state with no action
-            
-            # Get possible actions for the current state
-            possible_actions = self.get_actions(current_state)
-
-            # For each possible action, generate the next state
-            for action in possible_actions:
-                next_state = self.execute(current_state, action)
-
-                if next_state not in visited:
-                    visited.add(next_state)
-                    # Add the new state and the action leading to it to the queue
-                    frontier.put((next_state, path + [(current_state, action)]))
-
-        return None  # No solution found
-
-    def a_star_search(self):
-        """
-        Implements the A* Search algorithm to find the optimal sequence of moves from the
-        initial state to the goal state.
-        """
-        # Initialize the priority queue (min-heap) with the initial state and g(n) = 0
-        frontier = []
-        heapq.heappush(frontier, (0, self.initial_state, []))  # (f(n), state, path)
+        print(f"state_tup: {state_tup}")
+        for _ in range(simulation_limit):
         
-        # A dictionary to store the cost of the cheapest path to a state
-        g_cost = {self.initial_state: 0}
+            # 1. Selection: Select the most promising node using UCB
+            node = root
+            while node.is_fully_expanded():
+                print(f"Step in sim {_} and is_fully_expanded")
+                node = node.best_child()
 
-        # A set to keep track of visited states
-        visited = set()
+            # 2. Expansion: Expand node (add children if it's not terminal)
+            print(f"is_goal: {self.is_goal(node.state)}")
+            print(f"is_termination_state: {self.sim.game_state.is_termination_state()}")
+            print(f"node.state: {node.state}")
+            if not self.is_goal(node.state) and not self.sim.game_state.is_termination_state():
+                node.expand(self)  # Make sure expansion happens here
 
-        while frontier:
-            # Get the state with the lowest f(n) value from the priority queue
-            _, current_state, path = heapq.heappop(frontier)
+            # 3. Simulation: Run a random simulation from the expanded node
+            result = node.simulate(self)
 
-            # If we've reached the goal state, return the path
-            if self.is_goal(current_state):
-                return path + [(current_state, None)]  # Append the final state with no action
+            # 4. Backpropagation: Propagate the result back up the tree
+            node.backpropagate(result)
 
-            if current_state in visited:
-                continue
-
-            visited.add(current_state)
-
-            # Get possible actions for the current state
-            possible_actions = self.get_actions(current_state)
-
-            # For each possible action, generate the next state
-            for action in possible_actions:
-                next_state = self.execute(current_state, action)
-
-                # Calculate the g(n) for the next state
-                new_g_cost = g_cost[current_state] + 1  # Every action has a uniform cost of 1
-
-                if next_state not in g_cost or new_g_cost < g_cost[next_state]:
-                    g_cost[next_state] = new_g_cost
-
-                    # Calculate the heuristic cost h(n) for the next state
-                    h_cost = self.heuristic(next_state)
-
-                    # Calculate the total cost f(n) = g(n) + h(n)
-                    f_cost = new_g_cost + h_cost
-
-                    # Push the next state to the priority queue with the updated f(n)
-                    heapq.heappush(frontier, (f_cost, next_state, path + [(current_state, action)]))
-
-        return None  # No solution found
+        # After simulations, choose the best action from the root node
+        if root.children:
+            best_child = root.best_child(exploration_weight=0)  # Best child based on win ratio
+            return best_child.action, None
+        else:
+            raise ValueError("No valid moves to choose from. Root node has no children.")
 
     def heuristic(self, state):
         """
-        A simple heuristic function that estimates the cost from the current state to the goal state.
-        For example, this could be based on the Manhattan distance or the number of misplaced pieces.
+        Heuristic evaluation: prioritize states where the ball is closer to the winning row.
         """
-        current_board, player_idx = state
-        goal_board = tuple(self.goal_state_set)[0][0]  # Get the goal board state
+        board, player_idx = state
+        white_ball = board[5]  # White ball position
+        black_ball = board[11]  # Black ball position
 
-        # Example heuristic: count the number of pieces that are not in their goal position
-        mismatches = sum(1 for i in range(len(current_board)) if current_board[i] != goal_board[i])
+        # Evaluate based on the distance of the ball to the goal row.
+        if player_idx == 0:  # White's turn
+            return 7 - (white_ball // 7)  # Closer to row 7 is better for white
+        else:  # Black's turn
+            return black_ball // 7  # Closer to row 0 is better for black
 
-        return mismatches
+
+class MonteCarloTreeSearchNode:
+    def __init__(self, state, parent=None, action=None):
+        self.state = state
+        self.parent = parent
+        self.children = []
+        self.visits = 0
+        self.wins = 0
+        self.action = action
+
+    def is_fully_expanded(self):
+        return len(self.children) > 0
+
+    def best_child(self, exploration_weight=1.41):
+        if not self.children:
+            raise ValueError("No children to choose from. Node has not been expanded.")
+        
+        choices_weights = [
+            (child.wins / child.visits) + exploration_weight * math.sqrt((2 * math.log(self.visits) / child.visits))
+            for child in self.children
+        ]
+        print(f"choices_weights: {choices_weights}")
+        return self.children[choices_weights.index(max(choices_weights))]
+
+    def expand(self, problem):
+        print(f"Expanding node with state: {self.state}")
+
+        actions = problem.get_actions(self.state)
+        if not actions:
+            print("No valid actions found during expansion.")
+        else:
+            print(f"Found {len(actions)} valid actions: {actions}")
+
+        for action in actions:
+            next_state = problem.execute(self.state, action)
+            if next_state:
+                print(f"Action {action} led to next state: {next_state}")
+                child_node = MonteCarloTreeSearchNode(state=next_state, parent=self, action=action)
+                self.children.append(child_node)
+                print(f"Child node added for action {action}. Total children: {len(self.children)}")
+            else:
+                print(f"Action {action} did not generate a valid next state.")
+
+    def simulate(self, problem):
+        state = self.state
+        current_player = state[1]
+        while not problem.is_goal(state) and not problem.sim.game_state.is_termination_state():
+            possible_actions = problem.get_actions(state)
+            if not possible_actions:
+                break
+            action = random.choice(possible_actions)  # Randomly select action
+            state = problem.execute(state, action)
+            current_player = (current_player + 1) % 2  # Switch player
+        print(f"problem.heuristic(state): {problem.heuristic(state)}")
+        return problem.heuristic(state)
+
+    def backpropagate(self, result):
+        self.visits += 1
+        if result > 0:  # Assuming result > 0 means a win for maximizing player
+            self.wins += 1
+        if self.parent:
+            self.parent.backpropagate(result)
 
 
 if __name__ == '__main__':
-    all_reachable_tests = [
-        (
-            [
-                (1,1),(0,1),(2,1),(1,2),(1,0),(1,1),
-                (0,0),(2,0),(0,2),(2,2),(3,3),(3,3)
-            ],
-            set([(0,1),(2,1),(1,2),(1,0)]),
-            0
-        ),
-        (
-            [
-                (1,1),(0,1),(2,1),(1,2),(1,0),(1,1),
-                (0,0),(2,0),(0,2),(2,2),(3,3),(3,3)
-            ],
-            set([(2,2)]),
-            1
-        ),
-        (
-            [
-                (1,1),(0,1),(2,1),(1,2),(1,0),(1,1),
-                (0,0),(2,0),(0,2),(2,2),(3,3),(0,0)
-            ],
-            set(),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(0,0),
-                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
-            ],
-            set([(2,0),(0,2),(2,2),(0,3)]),
-            0
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
-            ],
-            set([(0,0),(0,2),(2,2),(0,3)]),
-            0
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(0,2),
-                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
-            ],
-            set([(0,0),(2,0),(2,2),(0,3)]),
-            0
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,2),
-                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
-            ],
-            set([(0,0),(2,0),(0,2),(0,3)]),
-            0
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(0,3),
-                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
-            ],
-            set([(0,0),(2,0),(0,2),(2,2)]),
-            0
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
-            ],
-            set([(2,1),(3,1),(3,2),(2,3)]),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(2,3),(2,1)
-            ],
-            set([(0,1),(3,1),(3,2),(2,3)]),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(2,3),(3,1)
-            ],
-            set([(0,1),(2,1),(3,2),(2,3)]),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(2,3),(3,2)
-            ],
-            set([(0,1),(2,1),(3,1),(2,3)]),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(2,3),(2,3)
-            ],
-            set([(0,1),(2,1),(3,1),(3,2)]),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(1,2),(1,2)
-            ],
-            set([(0,1),(2,1),(3,1),(3,2)]),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(1,2),(0,1)
-            ],
-            set([(2,1),(3,1),(3,2),(1,2)]),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(1,2),(2,1)
-            ],
-            set([(0,1),(3,1),(3,2),(1,2)]),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(1,2),(3,1)
-            ],
-            set([(0,1),(2,1),(3,2),(1,2)]),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
-            ],
-            set([(0,1),(2,1),(3,1),(1,2)]),
-            1
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(0,0),
-                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
-            ],
-            set([(2,0),(0,2),(2,2),(0,3)]),
-            0
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
-                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
-            ],
-            set([(0,0),(0,2),(2,2),(0,3)]),
-            0
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(0,2),
-                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
-            ],
-            set([(0,0),(2,0),(2,2),(0,3)]),
-            0
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(2,2),
-                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
-            ],
-            set([(0,0),(2,0),(0,2),(0,3)]),
-            0
-        ),
-        (
-            [
-                (0,0),(2,0),(0,2),(2,2),(0,3),(0,3),
-                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
-            ],
-            set([(0,0),(2,0),(0,2),(2,2)]),
-            0
-        ),
-    ]
+    from game import BoardState, GameSimulator, PlayerAlgorithmA, PlayerAlgorithmB, AdversarialSearchPlayer
 
-    def test_ball_reachability(state, reachable, player):
-        board = BoardState()
-        board.state = np.array(list(board.encode_single_pos(cr) for cr in state))
-        board.decode_state = board.make_state()
-        predicted_reachable_encoded = Rules.single_ball_actions(board, player)
-        encoded_reachable = set(board.encode_single_pos(cr) for cr in reachable)
-        print("Predicted reachable: ", predicted_reachable_encoded)
-        print("Actual reachable: ", encoded_reachable)
-        assert predicted_reachable_encoded == encoded_reachable
+    def test_adversarial_search(p1_class, p2_class, encoded_state_tuple, exp_winner, exp_stat):
+        b1 = BoardState()
+        b1.state = np.array(encoded_state_tuple)
+        b1.decode_state = b1.make_state()
+        players = [p1_class(GameStateProblem(b1, b1, 0), 0), p2_class(GameStateProblem(b1, b1, 0), 1)]
+        sim = GameSimulator(players)
+        sim.game_state = b1
+        rounds, winner, status = sim.run()
+        assert winner == exp_winner and status == exp_stat
 
-    for idx, test in enumerate(all_reachable_tests):
-        state = test[0]
-        reachable = test[1]
-        player = test[2]
-        print(f"Test #{idx}")
-        print("State: ", state)
-        print("Reachable: ", reachable)
-        print("Player: ", player)
-        print(test_ball_reachability(state, reachable, player))
-        print(f"{'='*20}")
+    test_adversarial_search(PlayerAlgorithmA, PlayerAlgorithmB, (49, 37, 46, 41, 55, 41, 50, 51, 52, 53, 54, 52), "WHITE", "No issues")
+
+    # tests = [
+    #         (PlayerAlgorithmA, PlayerAlgorithmB, (49, 37, 46, 41, 55, 41, 50, 51, 52, 53, 54, 52), "WHITE", "No issues"),
+    #         (AdversarialSearchPlayer, PlayerAlgorithmB, (49, 37, 46,  7, 55,  7, 50, 51, 52, 53, 54, 52), "WHITE", "No issues"), 
+    #         (AdversarialSearchPlayer, PlayerAlgorithmB, (49, 37, 46,  0, 55,  0, 50, 51, 52, 53, 54, 52), "WHITE", "No issues"), 
+    #         (PlayerAlgorithmB, AdversarialSearchPlayer, (14, 21, 22, 28, 29, 22,  9, 20, 34, 39, 55, 55), "BLACK", "No issues"), 
+    #         (PlayerAlgorithmB, AdversarialSearchPlayer, (14, 21, 22, 28, 29, 22, 11, 20, 34, 39, 55, 55), "BLACK", "No issues"), 
+    #         (AdversarialSearchPlayer, PlayerAlgorithmB, (44, 37, 46, 34, 40, 34,  1,  2, 52,  4,  5, 52), "WHITE", "No issues"), 
+    #         (AdversarialSearchPlayer, PlayerAlgorithmB, (44, 37, 46, 28, 40, 28,  1,  2, 52,  4,  5, 52), "WHITE", "No issues") 
+    #     ]
+    
+    # for test in tests:
+    #     test_adversarial_search(*test)
