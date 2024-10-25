@@ -57,6 +57,8 @@ class Problem:
         s, p = state
         k, v = action
         offset_idx = p * 6
+        print(f"execute state: {state}")
+        print(f"execute action: {action}")
         next_state = tuple((s[i] if i != offset_idx + k else v for i in range(len(s))), (p + 1) % 2)
         print(f"Next state generated: {next_state}")
 
@@ -225,8 +227,6 @@ class MonteCarloTreeSearchNode:
         return self.children[choices_weights.index(max(choices_weights))]
 
     def expand(self, problem):
-        print(f"Expanding node with state: {self.state}")
-
         actions = problem.get_actions(self.state)
         if not actions:
             print("No valid actions found during expansion.")
